@@ -8,8 +8,8 @@ local TAXI_POLL = 0.5       -- vérification de l'atterrissage, en secondes
 local FADE = 0.3            -- fondu d'apparition et de disparition, en secondes
 local FIRST_DELAY = { 5, 12 }  -- délai avant la première apparition d'un vol
 local VICTORY_SOUND = 888   -- son de montée de niveau de WoW
-local EASTER_CHANCE = 0.08  -- chance qu'un vol contienne un son rare (environ 1 vol sur 12)
-local EASTER_WINDOW = { 20, 50 }  -- moment du son rare, en secondes après le décollage
+local EASTER_CHANCE = 1 / 6 -- chance qu'un vol contienne le son rare (1 vol sur 6)
+local EASTER_SLOT = 2       -- le son rare remplace la 2e image du vol
 
 local DEFAULTS = {
     enabled = true,
@@ -25,7 +25,7 @@ local DEFAULTS = {
 local db
 local list = FlyMedia_List or {}
 local eggs = FlyMedia_Easter or {}
-local easterAt = nil
+local easterThisFlight, slot = false, 0
 
 local inFlight, testMode, hiddenThisFlight = false, false, false
 local showing, firstOfFlight, moving = false, true, false
@@ -167,26 +167,23 @@ local function StartFlight()
     if inFlight or #list == 0 then return end
     inFlight, firstOfFlight = true, true
     nextAt = GetTime() + math.random(FIRST_DELAY[1], FIRST_DELAY[2])
-    easterAt = nil
-    if #eggs > 0 and math.random() < EASTER_CHANCE then
-        easterAt = GetTime() + math.random(EASTER_WINDOW[1], EASTER_WINDOW[2])
-    end
+    slot = 0
+    easterThisFlight = #eggs > 0 and math.random() < EASTER_CHANCE
 end
 
--- Son rare : joué seul, entre deux images, sans rien afficher.
+-- Son rare : joué à la place d'une image, sans rien afficher.
 local function PlayEaster()
-    easterAt = nil
     local egg = eggs[math.random(#eggs)]
     if not db.muted then
         PlaySoundFile(MEDIA_PATH .. egg.sound, "Master")
     end
-    -- aucune image ne vient couvrir le son
-    nextAt = math.max(nextAt, GetTime() + (egg.duration or 5) + 3)
+    -- la pause suivante commence une fois le son terminé
+    nextAt = GetTime() + (egg.duration or 5) + RandomGap()
 end
 
 local function EndFlight()
     inFlight = false
-    easterAt = nil
+    easterThisFlight = false
     if showing and not testMode then HidePopup() end
 end
 
@@ -256,10 +253,13 @@ driver:SetScript("OnUpdate", function(self, elapsed)
     end
 
     if not showing then
-        if inFlight and easterAt and now >= easterAt then
-            PlayEaster()
-        elseif inFlight and now >= nextAt then
-            ShowPopup()
+        if inFlight and now >= nextAt then
+            slot = slot + 1
+            if easterThisFlight and slot == EASTER_SLOT then
+                PlayEaster()
+            else
+                ShowPopup()
+            end
         end
         return
     end
