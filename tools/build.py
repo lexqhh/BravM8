@@ -28,7 +28,7 @@ from PIL import Image, ImageSequence
 IMAGE_MAX = 512        # côté le plus long d'une image, en pixels
 FRAME_MAX = 200        # côté le plus long d'une image de clip
 CLIP_FPS = 10          # images par seconde des clips
-CLIP_MAX_SECONDS = 8   # durée max d'un clip (le reste est coupé)
+CLIP_MAX_SECONDS = 60  # sécurité : au-delà, le clip est coupé
 ATLAS_MAX = 2048       # taille max d'une planche d'images
 SOUND_MAX_SECONDS = 30
 # ---------------------------------------------------------------------------
@@ -101,24 +101,31 @@ def build_clip(src: Path, name: str, out: Path, tmp: Path) -> dict:
         fw, fh = first.size
     cols_max = ATLAS_MAX // fw
     rows_max = ATLAS_MAX // fh
-    files = files[: cols_max * rows_max]
+    per_page = cols_max * rows_max
     count = len(files)
-    # nombre de colonnes qui donne la plus petite texture une fois arrondie en puissance de 2
-    cols = min(range(1, min(count, cols_max) + 1),
-               key=lambda c: (math.ceil(count / c) <= rows_max
-                              and pow2(c * fw) * pow2(math.ceil(count / c) * fh) or float("inf"),
-                              abs(c * fw - math.ceil(count / c) * fh)))
-    rows = math.ceil(count / cols)
 
-    atlas = Image.new("RGB", (cols * fw, rows * fh))
-    for i, f in enumerate(files):
-        with Image.open(f) as fr:
-            atlas.paste(fr.convert("RGB"), ((i % cols) * fw, (i // cols) * fh))
-    tw, th = save_padded(atlas, out / f"{name}.tga")
+    # un clip long est réparti sur plusieurs planches, lues à la suite par l'add-on
+    pages = []
+    for p, start in enumerate(range(0, count, per_page), 1):
+        chunk = files[start:start + per_page]
+        n = len(chunk)
+        # nombre de colonnes qui donne la plus petite texture une fois arrondie en puissance de 2
+        cols = min(range(1, min(n, cols_max) + 1),
+                   key=lambda c: (math.ceil(n / c) <= rows_max
+                                  and pow2(c * fw) * pow2(math.ceil(n / c) * fh) or float("inf"),
+                                  abs(c * fw - math.ceil(n / c) * fh)))
+        rows = math.ceil(n / cols)
+        atlas = Image.new("RGB", (cols * fw, rows * fh))
+        for i, f in enumerate(chunk):
+            with Image.open(f) as fr:
+                atlas.paste(fr.convert("RGB"), ((i % cols) * fw, (i // cols) * fh))
+        file = name if count <= per_page else f"{name}_{p}"
+        tw, th = save_padded(atlas, out / f"{file}.tga")
+        pages.append({"file": file, "tw": tw, "th": th, "cols": cols})
 
-    entry = {"type": "video", "file": name, "w": fw, "h": fh, "tw": tw, "th": th,
-             "cols": cols, "frames": count, "fps": CLIP_FPS,
-             "duration": round(count / CLIP_FPS, 2)}
+    entry = {"type": "video", "file": pages[0]["file"], "w": fw, "h": fh,
+             "tw": pages[0]["tw"], "th": pages[0]["th"], "frames": count, "fps": CLIP_FPS,
+             "perPage": per_page, "duration": round(count / CLIP_FPS, 2), "pages": pages}
     if src.suffix.lower() != ".gif" and has_audio(src):
         if convert_audio(src, out / f"{name}.ogg", count / CLIP_FPS):
             entry["sound"] = f"{name}.ogg"
@@ -128,6 +135,10 @@ def build_clip(src: Path, name: str, out: Path, tmp: Path) -> dict:
 def lua_value(v) -> str:
     if isinstance(v, str):
         return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    if isinstance(v, list):
+        return "{ " + ", ".join(lua_value(x) for x in v) + " }"
+    if isinstance(v, dict):
+        return "{ " + ", ".join(f"{k} = {lua_value(x)}" for k, x in v.items()) + " }"
     return str(v)
 
 

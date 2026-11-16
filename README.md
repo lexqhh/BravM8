@@ -10,7 +10,7 @@ Add-on WoW: Forever : pendant les vols de maître de vol, des images et des clip
 
 Pour retirer un média, supprime-le du dossier `medias/` de la même façon.
 
-Formats : images png/jpg/webp/bmp, clips gif/mp4/webm/mov/mkv (8 s max, son de la vidéo inclus). Pour mettre un son sur une image, ajoute un fichier audio du même nom (`chat.jpg` + `chat.mp3`).
+Formats : images png/jpg/webp/bmp, clips gif/mp4/webm/mov/mkv (lus en entier jusqu'à 60 s, son de la vidéo inclus). Pour mettre un son sur une image, ajoute un fichier audio du même nom (`chat.jpg` + `chat.mp3`).
 
 Les réglages (taille max, images par seconde, durée des clips) sont en haut de `tools/build.py`.
 

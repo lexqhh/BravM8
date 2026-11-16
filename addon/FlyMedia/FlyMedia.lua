@@ -72,8 +72,45 @@ local bg = frame:CreateTexture(nil, "BACKGROUND")
 bg:SetAllPoints()
 bg:SetColorTexture(0, 0, 0, 0.55)
 
-local tex = frame:CreateTexture(nil, "ARTWORK")
-tex:SetAllPoints()
+-- deux textures : pendant qu'une planche de clip est affichée, la suivante
+-- se charge dans l'autre (invisible), pour enchaîner sans saccade
+local texA = frame:CreateTexture(nil, "ARTWORK")
+texA:SetAllPoints()
+local texB = frame:CreateTexture(nil, "ARTWORK")
+texB:SetAllPoints()
+texB:SetAlpha(0)
+local tex, spare = texA, texB
+local page, sparePage = 1, nil
+
+local function LoadPage(t, m, p)
+    t:SetTexture(MEDIA_PATH .. m.pages[p].file)
+end
+
+-- affiche l'image n° f (à partir de 0) d'un clip
+local function SetClipFrame(m, f)
+    local p = math.floor(f / m.perPage) + 1
+    if p ~= page then
+        if sparePage ~= p then LoadPage(spare, m, p) end
+        tex, spare = spare, tex
+        tex:SetAlpha(1)
+        spare:SetAlpha(0)
+        page = p
+        -- précharge la planche suivante (ou la première, si le clip boucle)
+        local nextP = p % #m.pages + 1
+        if nextP ~= p then
+            LoadPage(spare, m, nextP)
+            sparePage = nextP
+        else
+            sparePage = nil
+        end
+    end
+    local pg = m.pages[p]
+    local i = f - (p - 1) * m.perPage
+    local col = i % pg.cols
+    local row = math.floor(i / pg.cols)
+    local l, t = col * m.w / pg.tw, row * m.h / pg.th
+    tex:SetTexCoord(l, l + m.w / pg.tw, t, t + m.h / pg.th)
+end
 
 local controls = CreateFrame("Frame", nil, frame)
 controls:SetPoint("BOTTOMRIGHT", -4, 4)
@@ -127,9 +164,17 @@ local function ShowPopup()
     end
 
     -- la texture est complétée jusqu'à une puissance de 2 : on n'affiche que la zone utile
-    -- (pour un clip, c'est la première image de la planche)
+    -- (pour un clip, c'est la première image de la première planche)
+    tex, spare = texA, texB
+    tex:SetAlpha(1)
+    spare:SetAlpha(0)
+    page, sparePage = 1, nil
     tex:SetTexture(MEDIA_PATH .. m.file)
     tex:SetTexCoord(0, m.w / m.tw, 0, m.h / m.th)
+    if m.pages and #m.pages > 1 then
+        LoadPage(spare, m, 2)
+        sparePage = 2
+    end
 
     if not db.muted then
         if firstOfFlight then
@@ -152,7 +197,8 @@ end
 local function HidePopup()
     showing = false
     StopMediaSound()
-    tex:SetTexture(nil)   -- libère la texture
+    texA:SetTexture(nil)   -- libère les textures
+    texB:SetTexture(nil)
     frame:Hide()
     controls:Hide()
     controlsShown = false
@@ -278,14 +324,9 @@ driver:SetScript("OnUpdate", function(self, elapsed)
         controls:SetShown(over)
     end
 
-    -- animation des clips : on parcourt la planche d'images
+    -- animation des clips : on parcourt les planches d'images
     if m.type == "video" then
-        local f = math.floor((now - mediaStart) * m.fps) % m.frames
-        local col = f % m.cols
-        local row = math.floor(f / m.cols)
-        local l = col * m.w / m.tw
-        local t = row * m.h / m.th
-        tex:SetTexCoord(l, l + m.w / m.tw, t, t + m.h / m.th)
+        SetClipFrame(m, math.floor((now - mediaStart) * m.fps) % m.frames)
     end
 
     if now >= hideAt and not moving then
