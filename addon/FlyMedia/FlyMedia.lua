@@ -1,24 +1,31 @@
--- FlyMedia : diaporama d'images et de clips pendant les vols de maître de vol.
+-- FlyMedia : pendant un vol de maître de vol, des images et des clips
+-- apparaissent quelques secondes à des moments aléatoires.
 
 local ADDON_NAME = ...
 local MEDIA_PATH = "Interface\\AddOns\\FlyMedia\\media\\"
-local BOX = 360            -- côté max de la fenêtre (avant mise à l'échelle)
-local TAXI_POLL = 0.5      -- vérification de l'atterrissage, en secondes
+local BOX = 360             -- côté max de la fenêtre (avant mise à l'échelle)
+local TAXI_POLL = 0.5       -- vérification de l'atterrissage, en secondes
+local FADE = 0.3            -- fondu d'apparition et de disparition, en secondes
+local FIRST_DELAY = { 5, 12 }  -- délai avant la première apparition d'un vol
+local VICTORY_SOUND = 888   -- son de montée de niveau de WoW
 
 local DEFAULTS = {
-    enabled  = true,
-    muted    = false,
-    locked   = false,
-    interval = 8,
-    scale    = 1,
-    point    = nil,  -- { point, relativePoint, x, y }
+    enabled = true,
+    muted   = false,
+    locked  = false,
+    display = 6,    -- secondes d'affichage d'une image
+    gapMin  = 20,   -- pause aléatoire entre deux apparitions (secondes)
+    gapMax  = 45,
+    scale   = 1,
+    point   = nil,  -- { point, relativePoint, x, y } ; nil = centre de l'écran
 }
 
 local db
 local list = FlyMedia_List or {}
 
-local active, testMode, hiddenThisFlight = false, false, false
-local current, showUntil, mediaStart = nil, 0, 0
+local inFlight, testMode, hiddenThisFlight = false, false, false
+local showing, firstOfFlight, moving = false, true, false
+local current, nextAt, hideAt, mediaStart = nil, 0, 0, 0
 local soundHandle
 local bag = {}
 local pollTimer, controlsShown = 0, false
@@ -28,19 +35,18 @@ local function Print(msg)
 end
 
 -- Ordre aléatoire sans répétition tant que tout n'a pas été vu.
-local function NextIndex()
+local function NextMedia()
     if #bag == 0 then
         for i = 1, #list do bag[i] = i end
         for i = #bag, 2, -1 do
             local j = math.random(i)
             bag[i], bag[j] = bag[j], bag[i]
         end
-        -- évite de revoir tout de suite le dernier média affiché
         if current and #bag > 1 and list[bag[#bag]] == current then
             bag[1], bag[#bag] = bag[#bag], bag[1]
         end
     end
-    return table.remove(bag)
+    return list[table.remove(bag)]
 end
 
 ---------------------------------------------------------------------------
@@ -69,19 +75,6 @@ controls:SetPoint("BOTTOMRIGHT", -4, 4)
 controls:SetSize(1, 1)
 controls:Hide()
 
-local function MakeButton(label, width, onClick, anchor)
-    local b = CreateFrame("Button", nil, controls, "UIPanelButtonTemplate")
-    b:SetSize(width, 20)
-    b:SetText(label)
-    b:SetScript("OnClick", onClick)
-    if anchor then
-        b:SetPoint("RIGHT", anchor, "LEFT", -2, 0)
-    else
-        b:SetPoint("BOTTOMRIGHT", controls, "BOTTOMRIGHT", 0, 0)
-    end
-    return b
-end
-
 local function SavePosition()
     local p, _, rp, x, y = frame:GetPoint()
     db.point = { p, rp, x, y }
@@ -92,98 +85,125 @@ local function ApplyPosition()
     if db.point then
         frame:SetPoint(db.point[1], UIParent, db.point[2], db.point[3], db.point[4])
     else
-        frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -220, -160)
+        frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     end
     frame:SetScale(db.scale)
 end
 
-local function StopSound_()
+local function StopMediaSound()
     if soundHandle then
         StopSound(soundHandle, 300)
         soundHandle = nil
     end
 end
 
-local function PlayMediaSound(m)
-    StopSound_()
-    if m.sound and not db.muted then
-        local ok, handle = PlaySoundFile(MEDIA_PATH .. m.sound, "Master")
-        if ok then soundHandle = handle end
-    end
-end
-
 local muteButton
-
 local function RefreshMuteLabel()
     if muteButton then muteButton:SetText(db.muted and "Son" or "Muet") end
 end
 
-local function ShowMedia(m)
+local function RandomGap()
+    local lo, hi = db.gapMin, math.max(db.gapMin, db.gapMax)
+    return math.random(lo, hi)
+end
+
+local function ShowPopup()
+    if #list == 0 then return end
+    local m = NextMedia()
     current = m
     mediaStart = GetTime()
-    showUntil = mediaStart + math.max(db.interval, m.duration or 0)
+    hideAt = mediaStart + math.max(db.display, m.duration or 0)
 
     -- adapte la fenêtre aux proportions du média
-    local w, h = m.w, m.h
-    if w >= h then
-        frame:SetSize(BOX, BOX * h / w)
+    if m.w >= m.h then
+        frame:SetSize(BOX, BOX * m.h / m.w)
     else
-        frame:SetSize(BOX * w / h, BOX)
+        frame:SetSize(BOX * m.w / m.h, BOX)
     end
 
     -- la texture est complétée jusqu'à une puissance de 2 : on n'affiche que la zone utile
     -- (pour un clip, c'est la première image de la planche)
     tex:SetTexture(MEDIA_PATH .. m.file)
     tex:SetTexCoord(0, m.w / m.tw, 0, m.h / m.th)
-    PlayMediaSound(m)
+
+    if not db.muted then
+        if firstOfFlight then
+            pcall(PlaySound, VICTORY_SOUND, "Master")
+        end
+        StopMediaSound()
+        if m.sound then
+            local ok, handle = PlaySoundFile(MEDIA_PATH .. m.sound, "Master")
+            if ok then soundHandle = handle end
+        end
+    end
+    firstOfFlight = false
+
+    ApplyPosition()
+    frame:SetAlpha(0)
+    frame:Show()
+    showing = true
 end
 
-local function ShowNext()
-    if #list == 0 then return end
-    ShowMedia(list[NextIndex()])
-end
-
-local function Stop()
-    active, testMode = false, false
-    StopSound_()
+local function HidePopup()
+    showing = false
+    StopMediaSound()
     tex:SetTexture(nil)   -- libère la texture
-    current = nil
     frame:Hide()
+    controls:Hide()
+    controlsShown = false
+    if testMode then
+        testMode = false
+    end
+    if inFlight then
+        nextAt = GetTime() + RandomGap()
+    end
 end
 
-local function Start(isTest)
-    if #list == 0 then
-        if isTest then Print("aucun média dans l'add-on. Lance la mise à jour (FlyMedia.bat).") end
+local function StartFlight()
+    if inFlight or #list == 0 then return end
+    inFlight, firstOfFlight = true, true
+    nextAt = GetTime() + math.random(FIRST_DELAY[1], FIRST_DELAY[2])
+end
+
+local function EndFlight()
+    inFlight = false
+    if showing and not testMode then HidePopup() end
+end
+
+-- Boutons (visibles seulement au survol) : couper le son, masquer pour ce vol
+local closeButton = CreateFrame("Button", nil, controls, "UIPanelButtonTemplate")
+closeButton:SetSize(24, 20)
+closeButton:SetText("X")
+closeButton:SetPoint("BOTTOMRIGHT", controls, "BOTTOMRIGHT", 0, 0)
+closeButton:SetScript("OnClick", function()
+    if testMode then
+        HidePopup()
         return
     end
-    active, testMode = true, isTest and true or false
-    ApplyPosition()
-    frame:Show()
-    ShowNext()
-end
-
--- Boutons (visibles seulement au survol)
-local closeButton = MakeButton("X", 24, function()
-    if testMode then
-        Stop()
-    else
-        hiddenThisFlight = true
-        Stop()
-        Print("masqué pour ce vol. /flymedia pour les options.")
-    end
+    hiddenThisFlight = true
+    EndFlight()
+    HidePopup()
+    Print("plus rien jusqu'à l'atterrissage.")
 end)
-local nextButton = MakeButton(">>", 32, ShowNext, closeButton)
-muteButton = MakeButton("Muet", 44, function()
+
+muteButton = CreateFrame("Button", nil, controls, "UIPanelButtonTemplate")
+muteButton:SetSize(44, 20)
+muteButton:SetPoint("RIGHT", closeButton, "LEFT", -2, 0)
+muteButton:SetScript("OnClick", function()
     db.muted = not db.muted
-    if db.muted then StopSound_() end
+    if db.muted then StopMediaSound() end
     RefreshMuteLabel()
-end, nextButton)
+end)
 
 frame:SetScript("OnDragStart", function(self)
-    if not db.locked then self:StartMoving() end
+    if not db.locked then
+        moving = true
+        self:StartMoving()
+    end
 end)
 frame:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
+    moving = false
     SavePosition()
 end)
 
@@ -194,31 +214,44 @@ frame:SetScript("OnMouseWheel", function(self, delta)
     frame:SetScale(db.scale)
 end)
 
-frame:SetScript("OnUpdate", function(self, elapsed)
-    if not active then return end
+---------------------------------------------------------------------------
+-- Boucle principale (tourne aussi quand la fenêtre est cachée)
+---------------------------------------------------------------------------
+
+local driver = CreateFrame("Frame")
+driver:SetScript("OnUpdate", function(self, elapsed)
+    if not (inFlight or showing) then return end
     local now = GetTime()
 
     -- atterrissage
-    if not testMode then
+    if inFlight then
         pollTimer = pollTimer + elapsed
         if pollTimer >= TAXI_POLL then
             pollTimer = 0
             if not UnitOnTaxi("player") then
-                Stop()
-                return
+                EndFlight()
+                if not showing then return end
             end
         end
     end
 
+    if not showing then
+        if inFlight and now >= nextAt then ShowPopup() end
+        return
+    end
+
+    local m = current
+
+    -- fondu d'entrée et de sortie
+    local a = math.min(1, (now - mediaStart) / FADE, math.max(0, hideAt - now) / FADE)
+    frame:SetAlpha(moving and 1 or math.max(0, a))
+
     -- boutons au survol
-    local over = self:IsMouseOver()
+    local over = frame:IsMouseOver()
     if over ~= controlsShown then
         controlsShown = over
         controls:SetShown(over)
     end
-
-    local m = current
-    if not m then return end
 
     -- animation des clips : on parcourt la planche d'images
     if m.type == "video" then
@@ -230,8 +263,8 @@ frame:SetScript("OnUpdate", function(self, elapsed)
         tex:SetTexCoord(l, l + m.w / m.tw, t, t + m.h / m.th)
     end
 
-    if now >= showUntil then
-        ShowNext()
+    if now >= hideAt and not moving then
+        HidePopup()
     end
 end)
 
@@ -241,12 +274,10 @@ end)
 
 local function CheckTaxi()
     if UnitOnTaxi("player") then
-        if not active and db.enabled and not hiddenThisFlight then
-            Start(false)
-        end
+        if db.enabled and not hiddenThisFlight then StartFlight() end
     else
         hiddenThisFlight = false
-        if active and not testMode then Stop() end
+        if inFlight then EndFlight() end
     end
 end
 
@@ -279,16 +310,17 @@ end)
 ---------------------------------------------------------------------------
 
 local function Help()
-    Print(("%d média(s), %s, son %s, %d s par média."):format(
-        #list, db.enabled and "activé" or "désactivé",
-        db.muted and "coupé" or "actif", db.interval))
+    Print(("%d média(s), %s, son %s. Affichage %d s, pause de %d à %d s."):format(
+        #list, db.enabled and "activé" or "désactivé", db.muted and "coupé" or "actif",
+        db.display, db.gapMin, db.gapMax))
     print("  /flymedia on | off — activer ou désactiver")
-    print("  /flymedia test — aperçu sans voler (X pour fermer)")
+    print("  /flymedia test — faire apparaître une image tout de suite")
     print("  /flymedia son — couper ou remettre le son")
-    print("  /flymedia duree 8 — secondes par média (3 à 60)")
-    print("  /flymedia taille 1 — taille de la fenêtre (0.4 à 2.5), ou Ctrl + molette")
+    print("  /flymedia duree 6 — secondes d'affichage (2 à 30)")
+    print("  /flymedia pause 20 45 — pause aléatoire entre deux apparitions")
+    print("  /flymedia taille 1 — taille (0.4 à 2.5), ou Ctrl + molette")
     print("  /flymedia verrou — bloquer ou débloquer le déplacement")
-    print("  /flymedia reset — remettre la fenêtre à sa place")
+    print("  /flymedia reset — remettre la fenêtre au centre")
 end
 
 SLASH_FLYMEDIA1 = "/flymedia"
@@ -300,22 +332,39 @@ SlashCmdList.FLYMEDIA = function(input)
         CheckTaxi()
     elseif cmd == "off" then
         db.enabled = false
-        if active and not testMode then Stop() end
+        EndFlight()
         Print("désactivé.")
     elseif cmd == "test" then
-        if active then Stop() else Start(true) end
+        if #list == 0 then
+            Print("aucun média dans l'add-on. Lance la mise à jour (raccourci « Mettre à jour FlyMedia »).")
+        elseif showing then
+            HidePopup()
+        else
+            testMode, firstOfFlight = true, true
+            ShowPopup()
+        end
     elseif cmd == "son" or cmd == "mute" then
         db.muted = not db.muted
-        if db.muted then StopSound_() end
+        if db.muted then StopMediaSound() end
         RefreshMuteLabel()
         Print(db.muted and "son coupé." or "son activé.")
     elseif cmd == "duree" or cmd == "durée" then
         local n = tonumber(arg)
         if n then
-            db.interval = math.min(60, math.max(3, math.floor(n)))
-            Print(("%d s par média."):format(db.interval))
+            db.display = math.min(30, math.max(2, math.floor(n)))
+            Print(("%d s d'affichage."):format(db.display))
         else
-            Print("exemple : /flymedia duree 10")
+            Print("exemple : /flymedia duree 6")
+        end
+    elseif cmd == "pause" then
+        local a, b = arg:match("^(%d+)%s+(%d+)$")
+        a, b = tonumber(a), tonumber(b)
+        if a and b then
+            db.gapMin = math.min(300, math.max(5, math.min(a, b)))
+            db.gapMax = math.min(300, math.max(db.gapMin, math.max(a, b)))
+            Print(("pause de %d à %d s entre deux apparitions."):format(db.gapMin, db.gapMax))
+        else
+            Print("exemple : /flymedia pause 20 45")
         end
     elseif cmd == "taille" then
         local n = tonumber(arg)
@@ -332,7 +381,7 @@ SlashCmdList.FLYMEDIA = function(input)
     elseif cmd == "reset" then
         db.point, db.scale = nil, 1
         ApplyPosition()
-        Print("position et taille remises par défaut.")
+        Print("fenêtre remise au centre, taille par défaut.")
     else
         Help()
     end

@@ -1,6 +1,6 @@
 # FlyMedia
 
-Add-on WoW: Forever qui affiche un diaporama d'images et de clips pendant les vols de maître de vol.
+Add-on WoW: Forever : pendant les vols de maître de vol, des images et des clips apparaissent quelques secondes au milieu de l'écran, à des moments aléatoires.
 
 ## Pour toi : ajouter des médias
 
@@ -24,18 +24,21 @@ Ensuite, il n'y a plus rien à faire (ou un double-clic sur le raccourci). Si Wo
 
 ## En jeu
 
-La fenêtre apparaît au décollage et disparaît à l'atterrissage. Au survol : **Muet**, **>>** (suivant), **X** (masquer pour ce vol). Glisser pour déplacer, Ctrl + molette pour la taille.
+Pendant un vol : une première image apparaît 5 à 12 s après le décollage, avec le son de montée de niveau. Chaque image reste 6 s (un clip reste le temps de sa durée), puis disparaît. La suivante apparaît après une pause aléatoire de 20 à 45 s, et ainsi de suite jusqu'à l'atterrissage.
+
+Au survol : **Muet** et **X** (plus rien jusqu'à l'atterrissage). On ne peut pas passer une image. Glisser pour déplacer, Ctrl + molette pour la taille.
 
 | Commande | Effet |
 |---|---|
 | `/flymedia` | état et aide |
 | `/flymedia on` / `off` | activer ou désactiver |
-| `/flymedia test` | aperçu sans voler |
+| `/flymedia test` | faire apparaître une image tout de suite |
 | `/flymedia son` | couper ou remettre le son |
-| `/flymedia duree 8` | secondes par média |
+| `/flymedia duree 6` | secondes d'affichage |
+| `/flymedia pause 20 45` | pause aléatoire entre deux apparitions |
 | `/flymedia taille 1.2` | taille de la fenêtre |
 | `/flymedia verrou` | bloquer le déplacement |
-| `/flymedia reset` | remettre la fenêtre par défaut |
+| `/flymedia reset` | remettre la fenêtre au centre |
 
 ## Construire en local (facultatif)
 
