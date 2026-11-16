@@ -1,0 +1,47 @@
+# FlyMedia
+
+Add-on WoW: Forever qui affiche un diaporama d'images et de clips pendant les vols de maître de vol.
+
+## Pour toi : ajouter des médias
+
+1. Sur la page GitHub du dépôt, ouvre le dossier `medias/`, clique sur **Add file → Upload files** et glisse tes images, GIF ou vidéos.
+2. Valide (**Commit changes**).
+3. Au bout de 1 à 2 minutes, une nouvelle version apparaît dans **Releases** : tout est converti au format WoW automatiquement.
+
+Pour retirer un média, supprime-le du dossier `medias/` de la même façon.
+
+Formats : images png/jpg/webp/bmp, clips gif/mp4/webm/mov/mkv (8 s max, son de la vidéo inclus). Pour mettre un son sur une image, ajoute un fichier audio du même nom (`chat.jpg` + `chat.mp3`).
+
+Les réglages (taille max, images par seconde, durée des clips) sont en haut de `tools/build.py`.
+
+## Pour tes potes : installer et mettre à jour
+
+1. Télécharger **FlyMedia.bat** depuis la dernière Release.
+2. Double-cliquer dessus. Si Windows affiche « Windows a protégé votre ordinateur », cliquer sur **Informations complémentaires → Exécuter quand même**.
+3. Le programme trouve WoW: Forever, installe l'add-on, ajoute un raccourci **Mettre à jour FlyMedia** sur le bureau et propose la mise à jour automatique au démarrage de Windows.
+
+Ensuite, il n'y a plus rien à faire (ou un double-clic sur le raccourci). Si WoW est ouvert pendant la mise à jour, les nouveaux médias apparaissent au prochain lancement du jeu.
+
+## En jeu
+
+La fenêtre apparaît au décollage et disparaît à l'atterrissage. Au survol : **Muet**, **>>** (suivant), **X** (masquer pour ce vol). Glisser pour déplacer, Ctrl + molette pour la taille.
+
+| Commande | Effet |
+|---|---|
+| `/flymedia` | état et aide |
+| `/flymedia on` / `off` | activer ou désactiver |
+| `/flymedia test` | aperçu sans voler |
+| `/flymedia son` | couper ou remettre le son |
+| `/flymedia duree 8` | secondes par média |
+| `/flymedia taille 1.2` | taille de la fenêtre |
+| `/flymedia verrou` | bloquer le déplacement |
+| `/flymedia reset` | remettre la fenêtre par défaut |
+
+## Construire en local (facultatif)
+
+```bash
+pip install pillow
+python tools/build.py --version 1 --repo pseudo/FlyMedia
+```
+
+Il faut ffmpeg dans le PATH. Le résultat est dans `dist/`.

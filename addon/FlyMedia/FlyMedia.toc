@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: FlyMedia
+## Notes: Affiche des images et des vidéos pendant les vols de maître de vol.
+## Version: dev
+## SavedVariables: FlyMediaDB
+
+Media.lua
+FlyMedia.lua

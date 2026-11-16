@@ -1,0 +1,50 @@
+name: Publier FlyMedia
+
+on:
+  push:
+    branches: [main]
+    paths: ["medias/**", "addon/**", "tools/**", ".github/workflows/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer ffmpeg et Pillow
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg > /dev/null
+          pip install --quiet pillow
+
+      - name: Convertir les médias
+        run: python tools/build.py --version "${{ github.run_number }}" --repo "${{ github.repository }}"
+
+      - name: Publier la version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ github.run_number }}" \
+            dist/FlyMedia.zip dist/version.txt dist/update.ps1 dist/FlyMedia.bat \
+            --title "FlyMedia ${{ github.run_number }}" \
+            --notes "Pour installer ou mettre à jour : télécharge **FlyMedia.bat** ci-dessous et double-clique dessus." \
+            --latest
+
+      - name: Garder seulement les 3 dernières versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --limit 100 --json tagName --jq '.[3:][].tagName' |
+            while read -r tag; do gh release delete "$tag" --yes --cleanup-tag; done

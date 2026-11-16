@@ -1,0 +1,7 @@
+Dépose ici tes images, GIF et vidéos.
+
+- Images : png, jpg, webp, bmp
+- Clips : gif, mp4, webm, mov, mkv (8 secondes max, le reste est coupé)
+- Son sur une image : mets un fichier audio avec le même nom (chat.jpg + chat.mp3)
+
+Tu peux faire des sous-dossiers, ils sont tous lus.
