@@ -1,12 +1,12 @@
-"""Construit l'add-on FlyMedia à partir du dossier medias/.
+"""Construit l'add-on BravM8 à partir du dossier medias/.
 
 - images (png, jpg, webp, bmp)       -> TGA, 512 px max
 - GIF animés et vidéos (mp4, webm…)  -> planche d'images TGA + son .ogg
 - un fichier audio du même nom qu'une image (ex. chat.jpg + chat.mp3)
   est joué avec cette image
 
-Sortie dans dist/ : FlyMedia.zip (l'add-on complet), version.txt,
-update.ps1 et FlyMedia.bat (le fichier à donner aux potes).
+Sortie dans dist/ : BravM8.zip (l'add-on complet), version.txt,
+update.ps1 et BravM8.bat (le fichier à donner aux potes).
 Nécessite Python 3.9+, Pillow et ffmpeg/ffprobe dans le PATH.
 
 Usage : python tools/build.py --version 12
@@ -152,7 +152,7 @@ def audio_duration(path: Path) -> float:
 
 def write_media_lua(entries: list[dict], eggs: list[dict], dest: Path) -> None:
     lines = ["-- Fichier généré automatiquement par tools/build.py : ne pas modifier à la main."]
-    for var, items in (("FlyMedia_List", entries), ("FlyMedia_Easter", eggs)):
+    for var, items in (("BravM8_List", entries), ("BravM8_Easter", eggs)):
         lines.append(f"{var} = {{")
         for e in items:
             fields = ", ".join(f"{k} = {lua_value(v)}" for k, v in e.items() if k != "source")
@@ -164,7 +164,7 @@ def write_media_lua(entries: list[dict], eggs: list[dict], dest: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", required=True)
-    parser.add_argument("--repo", default="OWNER/REPO", help="dépôt GitHub, ex. pseudo/FlyMedia")
+    parser.add_argument("--repo", default="OWNER/REPO", help="dépôt GitHub, ex. pseudo/BravM8")
     parser.add_argument("--medias", default=str(ROOT / "medias"))
     parser.add_argument("--out", default=str(ROOT / "dist"))
     args = parser.parse_args()
@@ -173,8 +173,8 @@ def main() -> int:
     dist = Path(args.out)
     if dist.exists():
         shutil.rmtree(dist)
-    addon = dist / "FlyMedia"
-    shutil.copytree(ROOT / "addon" / "FlyMedia", addon)
+    addon = dist / "BravM8"
+    shutil.copytree(ROOT / "addon" / "BravM8", addon)
     out = addon / "media"
     out.mkdir()
 
@@ -220,7 +220,7 @@ def main() -> int:
             print(f"ERREUR {rel} : conversion audio impossible", file=sys.stderr)
 
     write_media_lua(entries, eggs, addon / "Media.lua")
-    toc = addon / "FlyMedia.toc"
+    toc = addon / "BravM8.toc"
     toc.write_text(toc.read_text(encoding="utf-8").replace("## Version: dev", f"## Version: {args.version}"),
                    encoding="utf-8")
     (addon / "version.txt").write_text(args.version, encoding="utf-8")
@@ -230,10 +230,10 @@ def main() -> int:
     tools = ROOT / "tools"
     ps1 = (tools / "update.ps1").read_text(encoding="utf-8").replace("\r\n", "\n")
     (dist / "update.ps1").write_bytes(b"\xef\xbb\xbf" + ps1.replace("\n", "\r\n").encode("utf-8"))
-    bat = (tools / "FlyMedia.bat").read_text(encoding="ascii").replace("\r\n", "\n")
-    (dist / "FlyMedia.bat").write_bytes(bat.replace("__REPO__", args.repo).replace("\n", "\r\n").encode("ascii"))
+    bat = (tools / "BravM8.bat").read_text(encoding="ascii").replace("\r\n", "\n")
+    (dist / "BravM8.bat").write_bytes(bat.replace("__REPO__", args.repo).replace("\n", "\r\n").encode("ascii"))
 
-    zip_path = dist / "FlyMedia.zip"
+    zip_path = dist / "BravM8.zip"
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for f in sorted(addon.rglob("*")):
             if f.is_file():

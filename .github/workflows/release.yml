@@ -1,4 +1,4 @@
-name: Publier FlyMedia
+name: Publier BravM8
 
 on:
   push:
@@ -37,9 +37,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v${{ github.run_number }}" \
-            dist/FlyMedia.zip dist/version.txt dist/update.ps1 dist/FlyMedia.bat \
-            --title "FlyMedia ${{ github.run_number }}" \
-            --notes "Pour installer ou mettre à jour : télécharge **FlyMedia.bat** ci-dessous et double-clique dessus." \
+            dist/BravM8.zip dist/version.txt dist/update.ps1 dist/BravM8.bat \
+            --title "BravM8 ${{ github.run_number }}" \
+            --notes "Pour installer ou mettre à jour : télécharge **BravM8.bat** ci-dessous et double-clique dessus." \
             --latest
 
       - name: Garder seulement les 3 dernières versions

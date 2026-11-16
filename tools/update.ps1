@@ -1,14 +1,25 @@
-# Installe ou met à jour l'add-on FlyMedia dans WoW: Forever.
-# Lancé par FlyMedia.bat (double-clic) ou au démarrage de Windows (mode silencieux).
+# Installe ou met à jour l'add-on BravM8 dans WoW: Forever.
+# Lancé par BravM8.bat (double-clic) ou au démarrage de Windows (mode silencieux).
+# Migre aussi les anciennes installations nommées FlyMedia.
 
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
 
-$Repo      = $env:FLYMEDIA_REPO
-$Silent    = $env:FLYMEDIA_SILENT -eq '1'
-$Base      = "https://github.com/$Repo/releases/latest/download"
-$ConfigDir = Join-Path $env:APPDATA 'FlyMedia'
+$Name    = 'BravM8'
+$OldName = 'FlyMedia'
+
+# les anciens scripts (FlyMedia.bat, silent.ps1) passent encore les variables FLYMEDIA_*
+$Repo = if ($env:BRAVM8_REPO) { $env:BRAVM8_REPO } else { $env:FLYMEDIA_REPO }
+if ($Repo) { $Repo = $Repo -replace "/$OldName$", "/$Name" }
+$Silent = ($env:BRAVM8_SILENT -eq '1') -or ($env:FLYMEDIA_SILENT -eq '1')
+
+$Base       = "https://github.com/$Repo/releases/latest/download"
+$ConfigDir  = Join-Path $env:APPDATA $Name
 $ConfigFile = Join-Path $ConfigDir 'config.json'
+$Desktop    = [Environment]::GetFolderPath('Desktop')
+$Startup    = [Environment]::GetFolderPath('Startup')
+$DesktopLnk = Join-Path $Desktop "Mettre à jour $Name.lnk"
+$StartupLnk = Join-Path $Startup "$Name.lnk"
 
 function Say([string]$msg, [string]$color = 'Gray') {
     if (-not $Silent) { Write-Host $msg -ForegroundColor $color }
@@ -101,35 +112,64 @@ function New-Shortcut([string]$lnk, [string]$target, [string]$arguments = '') {
     $s.Save()
 }
 
-function First-Setup($cfg) {
+# Raccourci du bureau vers une copie locale du .bat
+function Install-DesktopShortcut {
     New-Item -ItemType Directory -Force $ConfigDir | Out-Null
-    $batCopy = Join-Path $ConfigDir 'FlyMedia.bat'
-    if ($env:FLYMEDIA_BAT -and (Test-Path -LiteralPath $env:FLYMEDIA_BAT) -and
-        ($env:FLYMEDIA_BAT -ne $batCopy)) {
-        Copy-Item -LiteralPath $env:FLYMEDIA_BAT $batCopy -Force
-    }
+    $bat = Join-Path $ConfigDir "$Name.bat"
+    (New-Object Net.WebClient).DownloadFile("$Base/$Name.bat", $bat)
+    New-Shortcut $DesktopLnk $bat
+}
 
-    if (Test-Path $batCopy) {
-        $desktop = [Environment]::GetFolderPath('Desktop')
-        New-Shortcut (Join-Path $desktop 'Mettre à jour FlyMedia.lnk') $batCopy
-        Say 'Raccourci « Mettre à jour FlyMedia » ajouté sur le bureau.' Green
-    }
-
-    Write-Host ''
-    $answer = Read-Host 'Mettre à jour FlyMedia tout seul à chaque démarrage de Windows ? (O/N)'
-    if ($answer -match '^\s*[oOyY]') {
-        $silentScript = Join-Path $ConfigDir 'silent.ps1'
-        @"
+# Mise à jour silencieuse au démarrage de Windows
+function Install-Startup {
+    New-Item -ItemType Directory -Force $ConfigDir | Out-Null
+    $silentScript = Join-Path $ConfigDir 'silent.ps1'
+    @"
 Start-Sleep -Seconds 30
-`$env:FLYMEDIA_SILENT = '1'
-`$env:FLYMEDIA_REPO = '$Repo'
+`$env:BRAVM8_SILENT = '1'
+`$env:BRAVM8_REPO = '$Repo'
 [Net.ServicePointManager]::SecurityProtocol = 'Tls12'
-`$p = Join-Path `$env:TEMP 'flymedia-update.ps1'
+`$p = Join-Path `$env:TEMP 'bravm8-update.ps1'
 try { (New-Object Net.WebClient).DownloadFile('https://github.com/$Repo/releases/latest/download/update.ps1', `$p); & `$p } catch { }
 "@ | Set-Content $silentScript -Encoding UTF8
-        $startup = [Environment]::GetFolderPath('Startup')
-        New-Shortcut (Join-Path $startup 'FlyMedia.lnk') 'powershell.exe' `
-            "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$silentScript`""
+    New-Shortcut $StartupLnk 'powershell.exe' `
+        "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$silentScript`""
+}
+
+# Ancienne installation FlyMedia : on reprend sa config et ses raccourcis sous le nouveau nom.
+function Migrate-OldInstall {
+    $oldDir = Join-Path $env:APPDATA $OldName
+    $oldDesktop = Join-Path $Desktop "Mettre à jour $OldName.lnk"
+    $oldStartup = Join-Path $Startup "$OldName.lnk"
+    $hadDesktop = Test-Path -LiteralPath $oldDesktop
+    $hadStartup = Test-Path -LiteralPath $oldStartup
+    if (-not ((Test-Path $oldDir) -or $hadDesktop -or $hadStartup)) { return }
+
+    New-Item -ItemType Directory -Force $ConfigDir | Out-Null
+    $oldConfig = Join-Path $oldDir 'config.json'
+    if ((Test-Path $oldConfig) -and -not (Test-Path $ConfigFile)) {
+        Copy-Item $oldConfig $ConfigFile
+    }
+    if ($hadDesktop) {
+        Remove-Item -LiteralPath $oldDesktop -Force -ErrorAction SilentlyContinue
+        Install-DesktopShortcut
+    }
+    if ($hadStartup) {
+        Remove-Item -LiteralPath $oldStartup -Force -ErrorAction SilentlyContinue
+        Install-Startup
+    }
+    Remove-Item -LiteralPath $oldDir -Recurse -Force -ErrorAction SilentlyContinue
+    Say "Ancienne version renommée en $Name." Green
+}
+
+function First-Setup($cfg) {
+    Install-DesktopShortcut
+    Say "Raccourci « Mettre à jour $Name » ajouté sur le bureau." Green
+
+    Write-Host ''
+    $answer = Read-Host "Mettre à jour $Name tout seul à chaque démarrage de Windows ? (O/N)"
+    if ($answer -match '^\s*[oOyY]') {
+        Install-Startup
         Say 'OK : la mise à jour se fera toute seule au démarrage.' Green
     } else {
         Say 'OK : utilise le raccourci du bureau quand il y a du nouveau.'
@@ -140,8 +180,10 @@ try { (New-Object Net.WebClient).DownloadFile('https://github.com/$Repo/releases
 # ---------------------------------------------------------------------------
 
 try {
-    if (-not $Repo) { throw 'Lance plutôt FlyMedia.bat.' }
-    Say '=== FlyMedia ===' Cyan
+    if (-not $Repo) { throw "Lance plutôt $Name.bat." }
+    Say "=== $Name ===" Cyan
+
+    Migrate-OldInstall
 
     $cfg = Load-Config
     $forever = Find-Forever $cfg
@@ -155,8 +197,14 @@ try {
     Say "WoW: Forever : $forever"
 
     $addons = Join-Path $forever 'Interface\AddOns'
-    $target = Join-Path $addons 'FlyMedia'
+    $target = Join-Path $addons $Name
     New-Item -ItemType Directory -Force $addons | Out-Null
+
+    # l'ancien dossier d'add-on ne doit pas rester, sinon tout s'afficherait en double
+    $oldAddon = Join-Path $addons $OldName
+    if (Test-Path -LiteralPath $oldAddon) {
+        Remove-Item -LiteralPath $oldAddon -Recurse -Force -ErrorAction SilentlyContinue
+    }
 
     $localVer = ''
     if (Test-Path (Join-Path $target 'version.txt')) {
@@ -170,15 +218,15 @@ try {
     if ($localVer -eq $remoteVer) {
         Say "Déjà à jour (version $localVer)." Green
     } else {
-        $tmp = Join-Path $env:TEMP ('flymedia-' + [guid]::NewGuid().ToString('N'))
+        $tmp = Join-Path $env:TEMP ('bravm8-' + [guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory $tmp | Out-Null
         try {
-            $zip = Join-Path $tmp 'FlyMedia.zip'
+            $zip = Join-Path $tmp "$Name.zip"
             Say "Téléchargement de la version $remoteVer..."
-            $wc.DownloadFile("$Base/FlyMedia.zip", $zip)
+            $wc.DownloadFile("$Base/$Name.zip", $zip)
             Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
-            $src = Join-Path $tmp 'FlyMedia'
-            if (-not (Test-Path (Join-Path $src 'FlyMedia.toc'))) { throw 'Archive téléchargée invalide.' }
+            $src = Join-Path $tmp $Name
+            if (-not (Test-Path (Join-Path $src "$Name.toc"))) { throw 'Archive téléchargée invalide.' }
 
             # on vide l'ancien dossier (si WoW bloque un fichier, on écrase par-dessus)
             if (Test-Path $target) {
@@ -192,7 +240,7 @@ try {
         if ($localVer) {
             Say "Mis à jour : version $localVer -> $remoteVer." Green
         } else {
-            Say "FlyMedia installé (version $remoteVer)." Green
+            Say "$Name installé (version $remoteVer)." Green
         }
 
         $root = Split-Path $forever -Parent

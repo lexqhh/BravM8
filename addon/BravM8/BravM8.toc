@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: BravM8
+## Notes: Petits bonus entre potes.
+## Version: dev
+## SavedVariables: BravM8DB
+
+Media.lua
+BravM8.lua

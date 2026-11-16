@@ -1,4 +1,4 @@
-# FlyMedia
+# BravM8
 
 Add-on WoW: Forever : pendant les vols de maître de vol, des images et des clips apparaissent quelques secondes au milieu de l'écran, à des moments aléatoires.
 
@@ -16,9 +16,9 @@ Les réglages (taille max, images par seconde, durée des clips) sont en haut de
 
 ## Pour tes potes : installer et mettre à jour
 
-1. Télécharger **FlyMedia.bat** depuis la dernière Release.
+1. Télécharger **BravM8.bat** depuis la dernière Release.
 2. Double-cliquer dessus. Si Windows affiche « Windows a protégé votre ordinateur », cliquer sur **Informations complémentaires → Exécuter quand même**.
-3. Le programme trouve WoW: Forever, installe l'add-on, ajoute un raccourci **Mettre à jour FlyMedia** sur le bureau et propose la mise à jour automatique au démarrage de Windows.
+3. Le programme trouve WoW: Forever, installe l'add-on, ajoute un raccourci **Mettre à jour BravM8** sur le bureau et propose la mise à jour automatique au démarrage de Windows.
 
 Ensuite, il n'y a plus rien à faire (ou un double-clic sur le raccourci). Si WoW est ouvert pendant la mise à jour, les nouveaux médias apparaissent au prochain lancement du jeu.
 
@@ -34,23 +34,23 @@ Au survol : **Muet** et **X** (plus rien jusqu'à l'atterrissage). On ne peut pa
 
 | Commande | Effet |
 |---|---|
-| `/flymedia` | état et aide |
-| `/flymedia on` / `off` | activer ou désactiver |
-| `/flymedia test` | faire apparaître une image tout de suite |
-| `/flymedia son` | couper ou remettre le son |
-| `/flymedia mort` | activer ou désactiver l'image à la mort |
-| `/flymedia foyer` | activer ou désactiver l'image pendant la pierre de foyer |
-| `/flymedia duree 5` | secondes d'affichage |
-| `/flymedia pause 8 18` | pause aléatoire entre deux apparitions |
-| `/flymedia taille 1.2` | taille de la fenêtre |
-| `/flymedia verrou` | bloquer le déplacement |
-| `/flymedia reset` | remettre la fenêtre au centre |
+| `/bravm8` | état et aide |
+| `/bravm8 on` / `off` | activer ou désactiver |
+| `/bravm8 test` | faire apparaître une image tout de suite |
+| `/bravm8 son` | couper ou remettre le son |
+| `/bravm8 mort` | activer ou désactiver l'image à la mort |
+| `/bravm8 foyer` | activer ou désactiver l'image pendant la pierre de foyer |
+| `/bravm8 duree 5` | secondes d'affichage |
+| `/bravm8 pause 8 18` | pause aléatoire entre deux apparitions |
+| `/bravm8 taille 1.2` | taille de la fenêtre |
+| `/bravm8 verrou` | bloquer le déplacement |
+| `/bravm8 reset` | remettre la fenêtre au centre |
 
 ## Construire en local (facultatif)
 
 ```bash
 pip install pillow
-python tools/build.py --version 1 --repo pseudo/FlyMedia
+python tools/build.py --version 1 --repo pseudo/BravM8
 ```
 
 Il faut ffmpeg dans le PATH. Le résultat est dans `dist/`.

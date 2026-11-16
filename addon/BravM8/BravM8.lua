@@ -1,8 +1,8 @@
--- FlyMedia : pendant un vol de maître de vol, des images et des clips
+-- BravM8 : pendant un vol de maître de vol, des images et des clips
 -- apparaissent quelques secondes à des moments aléatoires.
 
 local ADDON_NAME = ...
-local MEDIA_PATH = "Interface\\AddOns\\FlyMedia\\media\\"
+local MEDIA_PATH = "Interface\\AddOns\\BravM8\\media\\"
 local BOX = 360             -- côté max de la fenêtre (avant mise à l'échelle)
 local TAXI_POLL = 0.5       -- vérification de l'atterrissage, en secondes
 local FADE = 0.3            -- fondu d'apparition et de disparition, en secondes
@@ -27,8 +27,8 @@ local DEFAULTS = {
 local HEARTHSTONE = 8690
 
 local db
-local list = FlyMedia_List or {}
-local eggs = FlyMedia_Easter or {}
+local list = BravM8_List or {}
+local eggs = BravM8_Easter or {}
 local easterThisFlight, slot = false, 0
 
 local inFlight, testMode, hiddenThisFlight = false, false, false
@@ -40,7 +40,7 @@ local bag = {}
 local pollTimer, controlsShown = 0, false
 
 local function Print(msg)
-    print("|cff66ccffFlyMedia|r : " .. msg)
+    print("|cff66ccffBravM8|r : " .. msg)
 end
 
 -- Ordre aléatoire sans répétition tant que tout n'a pas été vu.
@@ -62,7 +62,7 @@ end
 -- Fenêtre
 ---------------------------------------------------------------------------
 
-local frame = CreateFrame("Frame", "FlyMediaFrame", UIParent)
+local frame = CreateFrame("Frame", "BravM8Frame", UIParent)
 frame:SetSize(BOX, BOX * 9 / 16)
 frame:SetFrameStrata("HIGH")
 frame:SetClampedToScreen(true)
@@ -389,8 +389,8 @@ events:RegisterEvent("TAXIMAP_CLOSED")
 events:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" then
         if arg1 ~= ADDON_NAME then return end
-        FlyMediaDB = FlyMediaDB or {}
-        db = FlyMediaDB
+        BravM8DB = BravM8DB or {}
+        db = BravM8DB
         -- nouveaux réglages de rythme : on remplace les anciens enregistrés
         if db.version ~= DB_VERSION then
             db.display, db.gapMin, db.gapMax = DEFAULTS.display, DEFAULTS.gapMin, DEFAULTS.gapMax
@@ -439,20 +439,20 @@ local function Help()
     Print(("%d média(s), %s, son %s. Affichage %d s, pause de %d à %d s."):format(
         #list, db.enabled and "activé" or "désactivé", db.muted and "coupé" or "actif",
         db.display, db.gapMin, db.gapMax))
-    print("  /flymedia on | off — activer ou désactiver")
-    print("  /flymedia test — faire apparaître une image tout de suite")
-    print("  /flymedia son — couper ou remettre le son")
-    print(("  /flymedia mort — image à la mort (%s)"):format(db.onDeath and "oui" or "non"))
-    print(("  /flymedia foyer — image pendant la pierre de foyer (%s)"):format(db.onHearth and "oui" or "non"))
-    print("  /flymedia duree 5 — secondes d'affichage (2 à 30)")
-    print("  /flymedia pause 8 18 — pause aléatoire entre deux apparitions")
-    print("  /flymedia taille 1 — taille (0.4 à 2.5), ou Ctrl + molette")
-    print("  /flymedia verrou — bloquer ou débloquer le déplacement")
-    print("  /flymedia reset — remettre la fenêtre au centre")
+    print("  /bravm8 on | off — activer ou désactiver")
+    print("  /bravm8 test — faire apparaître une image tout de suite")
+    print("  /bravm8 son — couper ou remettre le son")
+    print(("  /bravm8 mort — image à la mort (%s)"):format(db.onDeath and "oui" or "non"))
+    print(("  /bravm8 foyer — image pendant la pierre de foyer (%s)"):format(db.onHearth and "oui" or "non"))
+    print("  /bravm8 duree 5 — secondes d'affichage (2 à 30)")
+    print("  /bravm8 pause 8 18 — pause aléatoire entre deux apparitions")
+    print("  /bravm8 taille 1 — taille (0.4 à 2.5), ou Ctrl + molette")
+    print("  /bravm8 verrou — bloquer ou débloquer le déplacement")
+    print("  /bravm8 reset — remettre la fenêtre au centre")
 end
 
-SLASH_FLYMEDIA1 = "/flymedia"
-SlashCmdList.FLYMEDIA = function(input)
+SLASH_BRAVM81 = "/bravm8"
+SlashCmdList.BRAVM8 = function(input)
     local cmd, arg = (input or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
     if cmd == "on" then
         db.enabled = true
@@ -464,7 +464,7 @@ SlashCmdList.FLYMEDIA = function(input)
         Print("désactivé.")
     elseif cmd == "test" then
         if #list == 0 then
-            Print("aucun média dans l'add-on. Lance la mise à jour (raccourci « Mettre à jour FlyMedia »).")
+            Print("aucun média dans l'add-on. Lance la mise à jour (raccourci « Mettre à jour BravM8 »).")
         elseif showing then
             HidePopup()
         else
@@ -492,7 +492,7 @@ SlashCmdList.FLYMEDIA = function(input)
             db.display = math.min(30, math.max(2, math.floor(n)))
             Print(("%d s d'affichage."):format(db.display))
         else
-            Print("exemple : /flymedia duree 6")
+            Print("exemple : /bravm8 duree 6")
         end
     elseif cmd == "pause" then
         local a, b = arg:match("^(%d+)%s+(%d+)$")
@@ -502,7 +502,7 @@ SlashCmdList.FLYMEDIA = function(input)
             db.gapMax = math.min(300, math.max(db.gapMin, math.max(a, b)))
             Print(("pause de %d à %d s entre deux apparitions."):format(db.gapMin, db.gapMax))
         else
-            Print("exemple : /flymedia pause 20 45")
+            Print("exemple : /bravm8 pause 20 45")
         end
     elseif cmd == "taille" then
         local n = tonumber(arg)
@@ -511,7 +511,7 @@ SlashCmdList.FLYMEDIA = function(input)
             frame:SetScale(db.scale)
             Print(("taille %.1f."):format(db.scale))
         else
-            Print("exemple : /flymedia taille 1.2")
+            Print("exemple : /bravm8 taille 1.2")
         end
     elseif cmd == "verrou" or cmd == "lock" then
         db.locked = not db.locked

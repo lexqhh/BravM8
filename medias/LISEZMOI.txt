@@ -8,4 +8,4 @@ Tu peux faire des sous-dossiers, ils sont tous lus.
 
 Sons rares (easter eggs) : mets les fichiers audio dans medias/easter/.
 1 vol sur 6, l'un d'eux remplace la 2e image du vol (le son joue, aucune image ne s'affiche).
-Commande cachée pour l'entendre en jeu : /flymedia oeuf
+Commande cachée pour l'entendre en jeu : /bravm8 oeuf
