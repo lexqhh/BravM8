@@ -248,8 +248,17 @@ local function ShowEventPopup(kind)
     end
 end
 
+local HEARTHSTONE_ITEM = 6948
+
 local function IsHearthstone(spellID)
+    if not spellID then return false end
     if spellID == HEARTHSTONE then return true end
+    -- sort réellement lancé par l'objet « Pierre de foyer » dans cette version du jeu
+    local getItemSpell = (C_Item and C_Item.GetItemSpell) or GetItemSpell
+    if getItemSpell then
+        local _, itemSpell = getItemSpell(HEARTHSTONE_ITEM)
+        if itemSpell == spellID then return true end
+    end
     -- variantes qui portent le même nom (selon la version du jeu)
     if C_Spell and C_Spell.GetSpellName and spellID then
         local name = C_Spell.GetSpellName(spellID)
