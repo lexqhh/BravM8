@@ -24,7 +24,9 @@ Ensuite, il n'y a plus rien à faire (ou un double-clic sur le raccourci). Si Wo
 
 ## En jeu
 
-Pendant un vol : une première image apparaît 5 à 12 s après le décollage, avec le son de montée de niveau. Chaque image reste 6 s (un clip reste le temps de sa durée), puis disparaît. La suivante apparaît après une pause aléatoire de 20 à 45 s, et ainsi de suite jusqu'à l'atterrissage.
+Pendant un vol : une première image apparaît 3 à 6 s après le décollage, avec le son de montée de niveau. Chaque image reste 5 s (un clip reste le temps de sa durée), puis disparaît. La suivante apparaît après une pause aléatoire de 8 à 18 s, et ainsi de suite jusqu'à l'atterrissage : environ 4 images sur un vol d'1 min, 8 sur 2 min.
+
+1 vol sur 6, la 2e image est remplacée par un son rare (dossier `medias/easter/`).
 
 Au survol : **Muet** et **X** (plus rien jusqu'à l'atterrissage). On ne peut pas passer une image. Glisser pour déplacer, Ctrl + molette pour la taille.
 
@@ -34,8 +36,8 @@ Au survol : **Muet** et **X** (plus rien jusqu'à l'atterrissage). On ne peut pa
 | `/flymedia on` / `off` | activer ou désactiver |
 | `/flymedia test` | faire apparaître une image tout de suite |
 | `/flymedia son` | couper ou remettre le son |
-| `/flymedia duree 6` | secondes d'affichage |
-| `/flymedia pause 20 45` | pause aléatoire entre deux apparitions |
+| `/flymedia duree 5` | secondes d'affichage |
+| `/flymedia pause 8 18` | pause aléatoire entre deux apparitions |
 | `/flymedia taille 1.2` | taille de la fenêtre |
 | `/flymedia verrou` | bloquer le déplacement |
 | `/flymedia reset` | remettre la fenêtre au centre |

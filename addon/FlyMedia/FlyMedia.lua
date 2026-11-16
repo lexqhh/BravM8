@@ -6,7 +6,8 @@ local MEDIA_PATH = "Interface\\AddOns\\FlyMedia\\media\\"
 local BOX = 360             -- côté max de la fenêtre (avant mise à l'échelle)
 local TAXI_POLL = 0.5       -- vérification de l'atterrissage, en secondes
 local FADE = 0.3            -- fondu d'apparition et de disparition, en secondes
-local FIRST_DELAY = { 5, 12 }  -- délai avant la première apparition d'un vol
+local FIRST_DELAY = { 3, 6 }   -- délai avant la première apparition d'un vol
+local DB_VERSION = 2           -- à augmenter quand les réglages par défaut changent
 local VICTORY_SOUND = 888   -- son de montée de niveau de WoW
 local EASTER_CHANCE = 1 / 6 -- chance qu'un vol contienne le son rare (1 vol sur 6)
 local EASTER_SLOT = 2       -- le son rare remplace la 2e image du vol
@@ -15,9 +16,9 @@ local DEFAULTS = {
     enabled = true,
     muted   = false,
     locked  = false,
-    display = 6,    -- secondes d'affichage d'une image
-    gapMin  = 20,   -- pause aléatoire entre deux apparitions (secondes)
-    gapMax  = 45,
+    display = 5,    -- secondes d'affichage d'une image
+    gapMin  = 8,    -- pause aléatoire entre deux apparitions (secondes)
+    gapMax  = 18,   -- => environ 4 images sur un vol d'1 min, 8 sur 2 min
     scale   = 1,
     point   = nil,  -- { point, relativePoint, x, y } ; nil = centre de l'écran
 }
@@ -316,6 +317,11 @@ events:SetScript("OnEvent", function(self, event, arg1)
         if arg1 ~= ADDON_NAME then return end
         FlyMediaDB = FlyMediaDB or {}
         db = FlyMediaDB
+        -- nouveaux réglages de rythme : on remplace les anciens enregistrés
+        if db.version ~= DB_VERSION then
+            db.display, db.gapMin, db.gapMax = DEFAULTS.display, DEFAULTS.gapMin, DEFAULTS.gapMax
+            db.version = DB_VERSION
+        end
         for k, v in pairs(DEFAULTS) do
             if db[k] == nil then db[k] = v end
         end
@@ -340,8 +346,8 @@ local function Help()
     print("  /flymedia on | off — activer ou désactiver")
     print("  /flymedia test — faire apparaître une image tout de suite")
     print("  /flymedia son — couper ou remettre le son")
-    print("  /flymedia duree 6 — secondes d'affichage (2 à 30)")
-    print("  /flymedia pause 20 45 — pause aléatoire entre deux apparitions")
+    print("  /flymedia duree 5 — secondes d'affichage (2 à 30)")
+    print("  /flymedia pause 8 18 — pause aléatoire entre deux apparitions")
     print("  /flymedia taille 1 — taille (0.4 à 2.5), ou Ctrl + molette")
     print("  /flymedia verrou — bloquer ou débloquer le déplacement")
     print("  /flymedia reset — remettre la fenêtre au centre")
