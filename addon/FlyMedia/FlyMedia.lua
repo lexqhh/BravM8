@@ -21,7 +21,10 @@ local DEFAULTS = {
     gapMax  = 18,   -- => environ 4 images sur un vol d'1 min, 8 sur 2 min
     scale   = 1,
     point   = nil,  -- { point, relativePoint, x, y } ; nil = centre de l'écran
+    onDeath = true, -- une image quand le personnage meurt
+    onHearth = true, -- une image pendant l'incantation de la pierre de foyer
 }
+local HEARTHSTONE = 8690
 
 local db
 local list = FlyMedia_List or {}
@@ -29,6 +32,7 @@ local eggs = FlyMedia_Easter or {}
 local easterThisFlight, slot = false, 0
 
 local inFlight, testMode, hiddenThisFlight = false, false, false
+local eventMode = nil   -- "death" ou "hearth" quand l'image vient d'un événement hors vol
 local showing, firstOfFlight, moving = false, true, false
 local current, nextAt, hideAt, mediaStart = nil, 0, 0, 0
 local soundHandle
@@ -202,9 +206,7 @@ local function HidePopup()
     frame:Hide()
     controls:Hide()
     controlsShown = false
-    if testMode then
-        testMode = false
-    end
+    testMode, eventMode = false, nil
     if inFlight then
         nextAt = GetTime() + RandomGap()
     end
@@ -231,7 +233,29 @@ end
 local function EndFlight()
     inFlight = false
     easterThisFlight = false
-    if showing and not testMode then HidePopup() end
+    if showing and not testMode and not eventMode then HidePopup() end
+end
+
+-- Une seule image, hors vol (mort, pierre de foyer)
+local function ShowEventPopup(kind)
+    if not db.enabled or inFlight or showing or #list == 0 then return end
+    eventMode, firstOfFlight = kind, true
+    ShowPopup()
+    if kind == "hearth" then
+        -- reste affichée jusqu'à la fin de l'incantation (environ 10 s)
+        local endMS = select(5, UnitCastingInfo("player"))
+        if endMS then hideAt = math.max(hideAt, endMS / 1000) end
+    end
+end
+
+local function IsHearthstone(spellID)
+    if spellID == HEARTHSTONE then return true end
+    -- variantes qui portent le même nom (selon la version du jeu)
+    if C_Spell and C_Spell.GetSpellName and spellID then
+        local name = C_Spell.GetSpellName(spellID)
+        return name ~= nil and name == C_Spell.GetSpellName(HEARTHSTONE)
+    end
+    return false
 end
 
 -- Boutons (visibles seulement au survol) : couper le son, masquer pour ce vol
@@ -240,7 +264,7 @@ closeButton:SetSize(24, 20)
 closeButton:SetText("X")
 closeButton:SetPoint("BOTTOMRIGHT", controls, "BOTTOMRIGHT", 0, 0)
 closeButton:SetScript("OnClick", function()
-    if testMode then
+    if testMode or eventMode then
         HidePopup()
         return
     end
@@ -377,6 +401,28 @@ events:SetScript("OnEvent", function(self, event, arg1)
 end)
 
 ---------------------------------------------------------------------------
+-- Mort et pierre de foyer
+---------------------------------------------------------------------------
+
+local extra = CreateFrame("Frame")
+extra:RegisterEvent("PLAYER_DEAD")
+extra:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
+extra:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
+extra:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
+extra:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
+extra:SetScript("OnEvent", function(self, event, unit, castGUID, spellID)
+    if not db then return end
+    if event == "PLAYER_DEAD" then
+        if db.onDeath then ShowEventPopup("death") end
+    elseif event == "UNIT_SPELLCAST_START" then
+        if db.onHearth and IsHearthstone(spellID) then ShowEventPopup("hearth") end
+    elseif eventMode == "hearth" and IsHearthstone(spellID) then
+        -- incantation finie, annulée ou ratée : l'image part avec
+        HidePopup()
+    end
+end)
+
+---------------------------------------------------------------------------
 -- Commandes
 ---------------------------------------------------------------------------
 
@@ -387,6 +433,8 @@ local function Help()
     print("  /flymedia on | off — activer ou désactiver")
     print("  /flymedia test — faire apparaître une image tout de suite")
     print("  /flymedia son — couper ou remettre le son")
+    print(("  /flymedia mort — image à la mort (%s)"):format(db.onDeath and "oui" or "non"))
+    print(("  /flymedia foyer — image pendant la pierre de foyer (%s)"):format(db.onHearth and "oui" or "non"))
     print("  /flymedia duree 5 — secondes d'affichage (2 à 30)")
     print("  /flymedia pause 8 18 — pause aléatoire entre deux apparitions")
     print("  /flymedia taille 1 — taille (0.4 à 2.5), ou Ctrl + molette")
@@ -417,6 +465,13 @@ SlashCmdList.FLYMEDIA = function(input)
     elseif cmd == "oeuf" then
         -- commande cachée (absente de l'aide) pour tester le son rare
         if #eggs > 0 then PlayEaster() else Print("aucun son rare dans l'add-on.") end
+    elseif cmd == "mort" then
+        db.onDeath = not db.onDeath
+        Print(db.onDeath and "image à la mort activée." or "image à la mort désactivée.")
+    elseif cmd == "foyer" then
+        db.onHearth = not db.onHearth
+        Print(db.onHearth and "image pendant la pierre de foyer activée."
+            or "image pendant la pierre de foyer désactivée.")
     elseif cmd == "son" or cmd == "mute" then
         db.muted = not db.muted
         if db.muted then StopMediaSound() end

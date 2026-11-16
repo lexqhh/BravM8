@@ -28,6 +28,8 @@ Pendant un vol : une première image apparaît 3 à 6 s après le décollage, av
 
 1 vol sur 6, la 2e image est remplacée par un son rare (dossier `medias/easter/`).
 
+Hors vol : une image apparaît aussi **à la mort du personnage** et **pendant l'incantation de la pierre de foyer** (elle reste jusqu'à la fin de l'incantation et disparaît si on l'annule).
+
 Au survol : **Muet** et **X** (plus rien jusqu'à l'atterrissage). On ne peut pas passer une image. Glisser pour déplacer, Ctrl + molette pour la taille.
 
 | Commande | Effet |
@@ -36,6 +38,8 @@ Au survol : **Muet** et **X** (plus rien jusqu'à l'atterrissage). On ne peut pa
 | `/flymedia on` / `off` | activer ou désactiver |
 | `/flymedia test` | faire apparaître une image tout de suite |
 | `/flymedia son` | couper ou remettre le son |
+| `/flymedia mort` | activer ou désactiver l'image à la mort |
+| `/flymedia foyer` | activer ou désactiver l'image pendant la pierre de foyer |
 | `/flymedia duree 5` | secondes d'affichage |
 | `/flymedia pause 8 18` | pause aléatoire entre deux apparitions |
 | `/flymedia taille 1.2` | taille de la fenêtre |
