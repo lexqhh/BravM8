@@ -5,3 +5,7 @@ Dépose ici tes images, GIF et vidéos.
 - Son sur une image : mets un fichier audio avec le même nom (chat.jpg + chat.mp3)
 
 Tu peux faire des sous-dossiers, ils sont tous lus.
+
+Sons rares (easter eggs) : mets les fichiers audio dans medias/easter/.
+Environ 1 vol sur 12, l'un d'eux est joué seul, sans image, 20 à 50 s après le décollage.
+Commande cachée pour l'entendre en jeu : /flymedia oeuf

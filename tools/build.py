@@ -131,13 +131,22 @@ def lua_value(v) -> str:
     return str(v)
 
 
-def write_media_lua(entries: list[dict], dest: Path) -> None:
-    lines = ["-- Fichier généré automatiquement par tools/build.py : ne pas modifier à la main.",
-             "FlyMedia_List = {"]
-    for e in entries:
-        fields = ", ".join(f"{k} = {lua_value(v)}" for k, v in e.items() if k != "source")
-        lines.append(f"    {{ {fields} }}, -- {e['source']}")
-    lines.append("}")
+def audio_duration(path: Path) -> float:
+    r = run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)])
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return 5.0
+
+
+def write_media_lua(entries: list[dict], eggs: list[dict], dest: Path) -> None:
+    lines = ["-- Fichier généré automatiquement par tools/build.py : ne pas modifier à la main."]
+    for var, items in (("FlyMedia_List", entries), ("FlyMedia_Easter", eggs)):
+        lines.append(f"{var} = {{")
+        for e in items:
+            fields = ", ".join(f"{k} = {lua_value(v)}" for k, v in e.items() if k != "source")
+            lines.append(f"    {{ {fields} }}, -- {e['source']}")
+        lines.append("}")
     dest.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -158,7 +167,10 @@ def main() -> int:
     out = addon / "media"
     out.mkdir()
 
-    sources = sorted(p for p in medias.rglob("*") if p.is_file()) if medias.exists() else []
+    all_files = sorted(p for p in medias.rglob("*") if p.is_file()) if medias.exists() else []
+    easter_dir = medias / "easter"
+    easter = [p for p in all_files if easter_dir in p.parents and p.suffix.lower() in AUDIO_EXT]
+    sources = [p for p in all_files if easter_dir not in p.parents]
     audio_by_stem = {p.stem.lower(): p for p in sources if p.suffix.lower() in AUDIO_EXT}
     visuals = [p for p in sources if p.suffix.lower() in IMAGE_EXT | VIDEO_EXT]
 
@@ -184,7 +196,19 @@ def main() -> int:
                 errors.append(rel)
                 print(f"ERREUR {rel} : {exc}", file=sys.stderr)
 
-    write_media_lua(entries, addon / "Media.lua")
+    # sons rares (medias/easter/) : joués seuls, de temps en temps, pendant un vol
+    eggs = []
+    for i, src in enumerate(easter, 1):
+        rel = src.relative_to(medias).as_posix()
+        name = f"e{i:03d}.ogg"
+        if convert_audio(src, out / name, SOUND_MAX_SECONDS):
+            eggs.append({"sound": name, "duration": round(audio_duration(out / name), 2), "source": rel})
+            print(f"ok    {rel}  ->  easter egg, {eggs[-1]['duration']} s")
+        else:
+            errors.append(rel)
+            print(f"ERREUR {rel} : conversion audio impossible", file=sys.stderr)
+
+    write_media_lua(entries, eggs, addon / "Media.lua")
     toc = addon / "FlyMedia.toc"
     toc.write_text(toc.read_text(encoding="utf-8").replace("## Version: dev", f"## Version: {args.version}"),
                    encoding="utf-8")
