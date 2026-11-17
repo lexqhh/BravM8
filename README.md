@@ -8,6 +8,8 @@ Add-on WoW: Forever : pendant les vols de maître de vol, des images et des clip
 2. Valide (**Commit changes**).
 3. Au bout de 1 à 2 minutes, une nouvelle version apparaît dans **Releases** : tout est converti au format WoW automatiquement.
 
+GitHub refuse les fichiers de plus de 25 Mo envoyés par le site. Pour une vidéo trop lourde, glisse-la sur `tools/reduire-video.bat` : une copie en 480p (quelques Mo) est créée dans un dossier `pour-BravM8` à côté de l'originale. Aucune perte en jeu, les clips y sont affichés en 200 px.
+
 Pour retirer un média, supprime-le du dossier `medias/` de la même façon.
 
 Formats : images png/jpg/webp/bmp, clips gif/mp4/webm/mov/mkv (lus en entier jusqu'à 60 s, son de la vidéo inclus). Pour mettre un son sur une image, ajoute un fichier audio du même nom (`chat.jpg` + `chat.mp3`).
