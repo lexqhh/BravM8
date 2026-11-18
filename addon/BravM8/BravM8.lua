@@ -7,7 +7,7 @@ local BOX = 360             -- côté max de la fenêtre (avant mise à l'échel
 local TAXI_POLL = 0.5       -- vérification de l'atterrissage, en secondes
 local FADE = 0.3            -- fondu d'apparition et de disparition, en secondes
 local FIRST_DELAY = { 3, 6 }   -- délai avant la première apparition d'un vol
-local DB_VERSION = 2           -- à augmenter quand les réglages par défaut changent
+local DB_VERSION = 3           -- à augmenter quand les réglages par défaut changent
 local VICTORY_SOUND = 888   -- son de montée de niveau de WoW
 local EASTER_CHANCE = 1 / 6 -- chance qu'un vol contienne le son rare (1 vol sur 6)
 local EASTER_SLOT = 2       -- le son rare remplace la 2e image du vol
@@ -17,19 +17,28 @@ local DEFAULTS = {
     muted   = false,
     locked  = false,
     display = 5,    -- secondes d'affichage d'une image
-    gapMin  = 8,    -- pause aléatoire entre deux apparitions (secondes)
-    gapMax  = 18,   -- => environ 4 images sur un vol d'1 min, 8 sur 2 min
+    gapMin  = 5,    -- pause aléatoire entre deux apparitions (secondes)
+    gapMax  = 12,   -- => environ 5 images sur un vol d'1 min, 9 à 10 sur 2 min
     scale   = 1,
     point   = nil,  -- { point, relativePoint, x, y } ; nil = centre de l'écran
     onDeath = true, -- une image quand le personnage meurt
     onHearth = true, -- une image pendant l'incantation de la pierre de foyer
+    onBag   = true, -- diaporama pendant la sieste dans le sac de couchage
 }
 local HEARTHSTONE = 8690
+
+-- Sac de couchage douillet (Cozy Sleeping Bag) : +1 % d'XP par minute, 3 cumuls max
+local SLEEPING_BAG_ITEM = 211527
+local WELL_RESTED = 429959   -- buff « Well-Rested » gagné chaque minute dans le sac
+local WELL_RESTED_MAX = 3
+local BAG_ARM = 300          -- après avoir posé le sac, on a 5 min pour se coucher dessus
+local BAG_MAX = 190          -- le diaporama s'arrête au plus tard après 3 min 10
 
 local db
 local list = BravM8_List or {}
 local eggs = BravM8_Easter or {}
 local easterThisFlight, slot = false, 0
+local inBag, bagEndAt, bagUsedAt, restedStacks = false, 0, -1000, 0
 
 local inFlight, testMode, hiddenThisFlight = false, false, false
 local eventMode = nil   -- "death" ou "hearth" quand l'image vient d'un événement hors vol
@@ -207,13 +216,21 @@ local function HidePopup()
     controls:Hide()
     controlsShown = false
     testMode, eventMode = false, nil
-    if inFlight then
+    -- même rythme en vol et dans le sac de couchage
+    if inFlight or inBag then
         nextAt = GetTime() + RandomGap()
     end
 end
 
+local function EndBag(hideNow)
+    if not inBag then return end
+    inBag = false
+    if hideNow and showing and not testMode and not eventMode then HidePopup() end
+end
+
 local function StartFlight()
     if inFlight or #list == 0 then return end
+    EndBag(true)
     inFlight, firstOfFlight = true, true
     nextAt = GetTime() + math.random(FIRST_DELAY[1], FIRST_DELAY[2])
     slot = 0
@@ -236,9 +253,32 @@ local function EndFlight()
     if showing and not testMode and not eventMode then HidePopup() end
 end
 
+-- Diaporama dans le sac de couchage : les images s'enchaînent sans longue pause
+local function StartBag()
+    if not db.enabled or not db.onBag or inFlight or inBag or #list == 0 then return end
+    inBag, firstOfFlight = true, true
+    bagEndAt = GetTime() + BAG_MAX
+    nextAt = GetTime() + 1
+    if showing and not testMode and not eventMode then nextAt = 0 end
+end
+
+local function WellRestedStacks()
+    if not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) then return 0 end
+    local aura = C_UnitAuras.GetPlayerAuraBySpellID(WELL_RESTED)
+    return aura and math.max(1, aura.applications or 1) or 0
+end
+
+local function IsSleepingBag(spellID)
+    if not spellID then return false end
+    local getItemSpell = (C_Item and C_Item.GetItemSpell) or GetItemSpell
+    if not getItemSpell then return false end
+    local _, itemSpell = getItemSpell(SLEEPING_BAG_ITEM)
+    return itemSpell ~= nil and itemSpell == spellID
+end
+
 -- Une seule image, hors vol (mort, pierre de foyer)
 local function ShowEventPopup(kind)
-    if not db.enabled or inFlight or showing or #list == 0 then return end
+    if not db.enabled or inFlight or inBag or showing or #list == 0 then return end
     eventMode, firstOfFlight = kind, true
     ShowPopup()
     if kind == "hearth" then
@@ -275,6 +315,11 @@ closeButton:SetPoint("BOTTOMRIGHT", controls, "BOTTOMRIGHT", 0, 0)
 closeButton:SetScript("OnClick", function()
     if testMode or eventMode then
         HidePopup()
+        return
+    end
+    if inBag then
+        EndBag(true)
+        Print("diaporama arrêté.")
         return
     end
     hiddenThisFlight = true
@@ -317,8 +362,14 @@ end)
 
 local driver = CreateFrame("Frame")
 driver:SetScript("OnUpdate", function(self, elapsed)
-    if not (inFlight or showing) then return end
+    if not (inFlight or inBag or showing) then return end
     local now = GetTime()
+
+    -- fin de la sieste : 3 min écoulées (on laisse finir l'image en cours)
+    if inBag and now >= bagEndAt then
+        EndBag(false)
+        if not showing then return end
+    end
 
     -- atterrissage
     if inFlight then
@@ -333,7 +384,9 @@ driver:SetScript("OnUpdate", function(self, elapsed)
     end
 
     if not showing then
-        if inFlight and now >= nextAt then
+        if inBag and now >= nextAt then
+            ShowPopup()
+        elseif inFlight and now >= nextAt then
             slot = slot + 1
             if easterThisFlight and slot == EASTER_SLOT then
                 PlayEaster()
@@ -419,8 +472,46 @@ extra:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
 extra:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
 extra:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
 extra:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
+extra:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+extra:RegisterUnitEvent("UNIT_AURA", "player")
+extra:RegisterEvent("PLAYER_UPDATE_RESTING")
+extra:RegisterEvent("PLAYER_REGEN_DISABLED")
+extra:RegisterEvent("PLAYER_ENTERING_WORLD")
 extra:SetScript("OnEvent", function(self, event, unit, castGUID, spellID)
     if not db then return end
+    if event == "PLAYER_ENTERING_WORLD" then
+        -- cumuls déjà présents à la connexion : ce n'est pas une nouvelle sieste
+        restedStacks = WellRestedStacks()
+        return
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        -- sac posé : la zone de repos qui suit vient de lui
+        if IsSleepingBag(spellID) then bagUsedAt = GetTime() end
+        return
+    elseif event == "PLAYER_UPDATE_RESTING" then
+        if IsResting() then
+            if GetTime() - bagUsedAt < BAG_ARM and WellRestedStacks() < WELL_RESTED_MAX then
+                StartBag()
+            end
+        else
+            EndBag(true)   -- sorti de la zone du sac
+        end
+        return
+    elseif event == "UNIT_AURA" then
+        local stacks = WellRestedStacks()
+        if stacks ~= restedStacks then
+            local gained = stacks > restedStacks
+            restedStacks = stacks
+            if stacks >= WELL_RESTED_MAX then
+                EndBag(false)  -- bonus au maximum : l'image en cours finit, puis stop
+            elseif gained and IsResting() then
+                StartBag()     -- sac d'un membre du groupe : démarre au 1er cumul
+            end
+        end
+        return
+    elseif event == "PLAYER_REGEN_DISABLED" then
+        EndBag(true)       -- combat : la sieste est finie
+        return
+    end
     if event == "PLAYER_DEAD" then
         if db.onDeath then ShowEventPopup("death") end
     elseif event == "UNIT_SPELLCAST_START" then
@@ -444,8 +535,9 @@ local function Help()
     print("  /bravm8 son — couper ou remettre le son")
     print(("  /bravm8 mort — image à la mort (%s)"):format(db.onDeath and "oui" or "non"))
     print(("  /bravm8 foyer — image pendant la pierre de foyer (%s)"):format(db.onHearth and "oui" or "non"))
+    print(("  /bravm8 sac — diaporama dans le sac de couchage (%s)"):format(db.onBag and "oui" or "non"))
     print("  /bravm8 duree 5 — secondes d'affichage (2 à 30)")
-    print("  /bravm8 pause 8 18 — pause aléatoire entre deux apparitions")
+    print("  /bravm8 pause 5 12 — pause aléatoire entre deux apparitions")
     print("  /bravm8 taille 1 — taille (0.4 à 2.5), ou Ctrl + molette")
     print("  /bravm8 verrou — bloquer ou débloquer le déplacement")
     print("  /bravm8 reset — remettre la fenêtre au centre")
@@ -461,6 +553,7 @@ SlashCmdList.BRAVM8 = function(input)
     elseif cmd == "off" then
         db.enabled = false
         EndFlight()
+        EndBag(true)
         Print("désactivé.")
     elseif cmd == "test" then
         if #list == 0 then
@@ -481,6 +574,14 @@ SlashCmdList.BRAVM8 = function(input)
         db.onHearth = not db.onHearth
         Print(db.onHearth and "image pendant la pierre de foyer activée."
             or "image pendant la pierre de foyer désactivée.")
+    elseif cmd == "sac" then
+        db.onBag = not db.onBag
+        if not db.onBag then EndBag(true) end
+        Print(db.onBag and "diaporama dans le sac de couchage activé."
+            or "diaporama dans le sac de couchage désactivé.")
+    elseif cmd == "diapo" then
+        -- commande cachée : lancer le diaporama du sac sans sac
+        if inBag then EndBag(true) else StartBag() end
     elseif cmd == "son" or cmd == "mute" then
         db.muted = not db.muted
         if db.muted then StopMediaSound() end

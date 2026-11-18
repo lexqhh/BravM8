@@ -26,11 +26,13 @@ Ensuite, il n'y a plus rien à faire (ou un double-clic sur le raccourci). Si Wo
 
 ## En jeu
 
-Pendant un vol : une première image apparaît 3 à 6 s après le décollage, avec le son de montée de niveau. Chaque image reste 5 s (un clip reste le temps de sa durée), puis disparaît. La suivante apparaît après une pause aléatoire de 8 à 18 s, et ainsi de suite jusqu'à l'atterrissage : environ 4 images sur un vol d'1 min, 8 sur 2 min.
+Pendant un vol : une première image apparaît 3 à 6 s après le décollage, avec le son de montée de niveau. Chaque image reste 5 s (un clip reste le temps de sa durée), puis disparaît. La suivante apparaît après une pause aléatoire de 5 à 12 s, et ainsi de suite jusqu'à l'atterrissage : environ 5 images sur un vol d'1 min, 9 à 10 sur 2 min.
 
 1 vol sur 6, la 2e image est remplacée par un son rare (dossier `medias/easter/`).
 
 Hors vol : une image apparaît aussi **à la mort du personnage** et **pendant l'incantation de la pierre de foyer** (elle reste jusqu'à la fin de l'incantation et disparaît si on l'annule).
+
+Dans le **sac de couchage douillet** (Cozy Sleeping Bag) : un diaporama démarre quand on se couche dessus, les images apparaissent au même rythme que pendant un vol (pause de 5 à 12 s, environ 12 images sur la sieste). Il s'arrête quand le bonus d'XP atteint 3 %, après 3 min 10, si on sort de la zone du sac ou si un combat commence.
 
 Au survol : **Muet** et **X** (plus rien jusqu'à l'atterrissage). On ne peut pas passer une image. Glisser pour déplacer, Ctrl + molette pour la taille.
 
@@ -42,8 +44,9 @@ Au survol : **Muet** et **X** (plus rien jusqu'à l'atterrissage). On ne peut pa
 | `/bravm8 son` | couper ou remettre le son |
 | `/bravm8 mort` | activer ou désactiver l'image à la mort |
 | `/bravm8 foyer` | activer ou désactiver l'image pendant la pierre de foyer |
+| `/bravm8 sac` | activer ou désactiver le diaporama dans le sac de couchage |
 | `/bravm8 duree 5` | secondes d'affichage |
-| `/bravm8 pause 8 18` | pause aléatoire entre deux apparitions |
+| `/bravm8 pause 5 12` | pause aléatoire entre deux apparitions |
 | `/bravm8 taille 1.2` | taille de la fenêtre |
 | `/bravm8 verrou` | bloquer le déplacement |
 | `/bravm8 reset` | remettre la fenêtre au centre |
