@@ -28,17 +28,16 @@ local DEFAULTS = {
 local HEARTHSTONE = 8690
 
 -- Sac de couchage douillet (Cozy Sleeping Bag) : +1 % d'XP par minute, 3 cumuls max
-local SLEEPING_BAG_ITEM = 211527
+local BAG_REST = 1331671     -- buff « Au repos » présent tant qu'on est couché sur le sac
 local WELL_RESTED = 429959   -- buff « Well-Rested » gagné chaque minute dans le sac
 local WELL_RESTED_MAX = 3
-local BAG_ARM = 300          -- après avoir posé le sac, on a 5 min pour se coucher dessus
 local BAG_MAX = 190          -- le diaporama s'arrête au plus tard après 3 min 10
 
 local db
 local list = BravM8_List or {}
 local eggs = BravM8_Easter or {}
 local easterThisFlight, slot = false, 0
-local inBag, bagEndAt, bagUsedAt, restedStacks = false, 0, -1000, 0
+local inBag, bagEndAt, onBag = false, 0, false
 
 local inFlight, testMode, hiddenThisFlight = false, false, false
 local eventMode = nil   -- "death" ou "hearth" quand l'image vient d'un événement hors vol
@@ -268,12 +267,23 @@ local function WellRestedStacks()
     return aura and math.max(1, aura.applications or 1) or 0
 end
 
-local function IsSleepingBag(spellID)
-    if not spellID then return false end
-    local getItemSpell = (C_Item and C_Item.GetItemSpell) or GetItemSpell
-    if not getItemSpell then return false end
-    local _, itemSpell = getItemSpell(SLEEPING_BAG_ITEM)
-    return itemSpell ~= nil and itemSpell == spellID
+-- Couché sur un sac de couchage (le sien ou celui d'un autre joueur)
+local function IsOnBag()
+    if not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) then return false end
+    return C_UnitAuras.GetPlayerAuraBySpellID(BAG_REST) ~= nil
+end
+
+-- Le diaporama suit le buff « Au repos » du sac : il part quand on se couche,
+-- s'arrête quand on se lève. Rien si le bonus d'XP est déjà au maximum.
+local function CheckBag()
+    local now = IsOnBag()
+    if now == onBag then return end
+    onBag = now
+    if now then
+        if WellRestedStacks() < WELL_RESTED_MAX then StartBag() end
+    else
+        EndBag(true)
+    end
 end
 
 -- Une seule image, hors vol (mort, pierre de foyer)
@@ -472,40 +482,16 @@ extra:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
 extra:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
 extra:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
 extra:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
-extra:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 extra:RegisterUnitEvent("UNIT_AURA", "player")
-extra:RegisterEvent("PLAYER_UPDATE_RESTING")
 extra:RegisterEvent("PLAYER_REGEN_DISABLED")
 extra:RegisterEvent("PLAYER_ENTERING_WORLD")
 extra:SetScript("OnEvent", function(self, event, unit, castGUID, spellID)
     if not db then return end
-    if event == "PLAYER_ENTERING_WORLD" then
-        -- cumuls déjà présents à la connexion : ce n'est pas une nouvelle sieste
-        restedStacks = WellRestedStacks()
-        return
-    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-        -- sac posé : la zone de repos qui suit vient de lui
-        if IsSleepingBag(spellID) then bagUsedAt = GetTime() end
-        return
-    elseif event == "PLAYER_UPDATE_RESTING" then
-        if IsResting() then
-            if GetTime() - bagUsedAt < BAG_ARM and WellRestedStacks() < WELL_RESTED_MAX then
-                StartBag()
-            end
-        else
-            EndBag(true)   -- sorti de la zone du sac
-        end
-        return
-    elseif event == "UNIT_AURA" then
-        local stacks = WellRestedStacks()
-        if stacks ~= restedStacks then
-            local gained = stacks > restedStacks
-            restedStacks = stacks
-            if stacks >= WELL_RESTED_MAX then
-                EndBag(false)  -- bonus au maximum : l'image en cours finit, puis stop
-            elseif gained and IsResting() then
-                StartBag()     -- sac d'un membre du groupe : démarre au 1er cumul
-            end
+    if event == "PLAYER_ENTERING_WORLD" or event == "UNIT_AURA" then
+        -- aussi après un /reload passé couché sur le sac
+        CheckBag()
+        if inBag and WellRestedStacks() >= WELL_RESTED_MAX then
+            EndBag(false)  -- bonus au maximum : l'image en cours finit, puis stop
         end
         return
     elseif event == "PLAYER_REGEN_DISABLED" then
@@ -541,6 +527,34 @@ local function Help()
     print("  /bravm8 taille 1 — taille (0.4 à 2.5), ou Ctrl + molette")
     print("  /bravm8 verrou — bloquer ou débloquer le déplacement")
     print("  /bravm8 reset — remettre la fenêtre au centre")
+end
+
+-- Diagnostic du diaporama du sac : à taper couché sur le sac
+local function Debug()
+    local function yn(v) return v and "|cff44ff44oui|r" or "|cffff4444non|r" end
+    local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+    local version = getMeta and getMeta(ADDON_NAME, "Version") or "?"
+    Print(("diagnostic (version %s)"):format(tostring(version)))
+    print(("  activé : %s · sac : %s · médias : %d"):format(yn(db.enabled), yn(db.onBag), #list))
+    print(("  couché sur le sac (sort %d) : %s · en vol : %s · diaporama en cours : %s · image affichée : %s"):format(
+        BAG_REST, yn(IsOnBag()), yn(inFlight), yn(inBag), yn(showing)))
+    print(("  « Bien reposé » (sort %d) : %d cumul(s) sur %d"):format(
+        WELL_RESTED, WellRestedStacks(), WELL_RESTED_MAX))
+    -- au cas où le buff aurait un autre numéro de sort dans cette version du jeu
+    if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+        for i = 1, 40 do
+            local a = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
+            if not a then break end
+            local n = (a.name or ""):lower()
+            if n:find("repos") or n:find("rest") then
+                print(("  buff trouvé : %s (sort %s, %s cumul(s))"):format(
+                    tostring(a.name), tostring(a.spellId), tostring(a.applications)))
+            end
+        end
+    end
+    if inBag then
+        print(("  fin du diaporama dans %d s au plus tard"):format(math.max(0, math.floor(bagEndAt - GetTime()))))
+    end
 end
 
 SLASH_BRAVM81 = "/bravm8"
@@ -582,6 +596,8 @@ SlashCmdList.BRAVM8 = function(input)
     elseif cmd == "diapo" then
         -- commande cachée : lancer le diaporama du sac sans sac
         if inBag then EndBag(true) else StartBag() end
+    elseif cmd == "debug" then
+        Debug()
     elseif cmd == "son" or cmd == "mute" then
         db.muted = not db.muted
         if db.muted then StopMediaSound() end
